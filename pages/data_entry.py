@@ -142,12 +142,12 @@ def show_data_entry_page(existing_data):
                 st.session_state.protein_data.append(protein_entry)
 
                 # Ask if more proteins need to be entered
-                more_proteins = st.radio("Do you want to log another protein?", ["Yes", "No"], key=f"more_{len(st.session_state.protein_data)}")
+                more_proteins = st.radio("Would you like to log another protein?", ["Yes", "No"], key="more_proteins")
                 if more_proteins == "No":
-                    st.session_state.show_full_form = False
+                    st.session_state.show_full_form = False  # Hide form and go to review page
 
-        # Display entered data only after "Ready to Submit" has been clicked
-        if st.session_state.get('protein_data', []):
+        # Show the review page when user selects 'No'
+        if not st.session_state.get('show_full_form', True) and st.session_state.get('protein_data', []):
             st.subheader("Review Entered Data")
             for protein in st.session_state.protein_data:
                 st.markdown(f"**Protein Name:** {protein['protein_name']}")
@@ -161,11 +161,12 @@ def show_data_entry_page(existing_data):
                 for charge, ccs in protein['ccs_data']:
                     st.markdown(f"- Charge {charge}: {ccs} Å²")
                 st.markdown(f"**Notes:** {protein['additional_notes']}")
-            
-            # Button to submit the final data
+
+            # Button to submit all protein data
             submit_all = st.button("Submit All Protein Data")
 
             if submit_all:
+                # Submit the data (save to CSV, GitHub, etc.)
                 all_proteins = []
                 for protein in st.session_state.protein_data:
                     all_proteins.append({
@@ -189,4 +190,3 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access GitHub repository.")
                 else:
                     st.error("GitHub authentication failed.")
-
