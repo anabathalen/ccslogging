@@ -1,123 +1,163 @@
-# pages/data_entry.py - Data entry page
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import re
 
-from utils.github_utils import authenticate_github, get_repository, update_csv_in_github, get_existing_data
+# Utility to reset protein entry state
+def reset_protein_state():
+    st.session_state.protein_data = []
+    st.session_state.current_ccs_values = []
+    st.session_state.adding_protein = True
+    st.session_state.protein_index = 0
 
+# Start session state variables
+if 'protein_data' not in st.session_state:
+    reset_protein_state()
 
-def validate_doi(doi):
-    """Validate DOI format."""
-    doi_pattern = r'^10\.\d{4,9}/[-._;()/:A-Z0-9]+$'
-    return re.match(doi_pattern, doi, re.IGNORECASE) is not None
+if 'new_doi' not in st.session_state:
+    st.session_state.new_doi = ''
 
-def check_doi_exists(existing_data, doi):
-    """Check if DOI already exists in the database."""
-    if existing_data is None or existing_data.empty:
-        return False
-    return doi in existing_data['doi'].values
+if 'adding_protein' not in st.session_state:
+    st.session_state.adding_protein = True
 
-def show_data_entry_page(existing_data):
-    """Display data entry page with DOI check and data form."""
-    st.title("Collision Cross Section Data Entry")
+# Paper metadata entry
+st.title("Collision Cross Section Data Entry")
 
-    with st.expander("DOI Check", expanded=True):
-        st.markdown("### Check if paper already exists in database")
-        col1, col2 = st.columns([3, 1])
+with st.form("paper_form"):
+    st.header("Paper Information")
+    doi = st.text_input("DOI")
+    paper_title = st.text_input("Paper Title")
+    authors = st.text_input("Authors")
+    publication_year = st.number_input("Publication Year", min_value=1900, max_value=datetime.now().year, step=1)
+    journal = st.text_input("Journal")
+    submitted = st.form_submit_button("Save Paper Info")
 
-        with col1:
-            doi = st.text_input("Enter DOI (e.g., 10.1021/example)")
+    if submitted:
+        if not doi or not paper_title or not authors:
+            st.error("Please fill out the required fields (DOI, Title, Authors).")
+        else:
+            st.session_state.new_doi = doi
+            st.success("Paper information saved. You may now add protein entries.")
 
-        with col2:
-            check_button = st.button("Check DOI")
+# Begin protein data entry if paper info is set
+if st.session_state.new_doi:
 
-        if check_button and doi:
-            if not validate_doi(doi):
-                st.error("Invalid DOI format. Please enter a valid DOI (e.g., 10.1021/example)")
-            elif check_doi_exists(existing_data, doi):
-                st.warning(f"This paper (DOI: {doi}) already exists in the database!")
-                paper_entries = existing_data[existing_data['doi'] == doi]
-                st.write(f"Found {len(paper_entries)} entries from this paper:")
-                st.dataframe(paper_entries)
+    st.subheader(f"Add Protein Entry #{st.session_state.protein_index + 1}")
+    with st.form(f"protein_form_{st.session_state.protein_index}"):
+
+        protein_name = st.text_input("Protein Name")
+
+        instrument = st.selectbox("Instrument Used", [
+            "Waters Synapt", "Waters Cyclic", "Waters Vion",
+            "Agilent 6560", "Bruker timsTOF", "Other (enter)"
+        ])
+        if instrument == "Other (enter)":
+            instrument = st.text_input("Specify Instrument")
+
+        ims_type = st.selectbox("IMS Type", ["TWIMS", "DTIMS", "CYCLIC", "TIMS", "FAIMS", "Other (enter)"])
+        if ims_type == "Other (enter)":
+            ims_type = st.text_input("Specify IMS Type")
+
+        drift_gas = st.selectbox("Drift Gas", ["Nitrogen", "Helium", "Argon", "Other"])
+        if drift_gas == "Other":
+            drift_gas = st.text_input("Specify Drift Gas")
+
+        st.markdown("**Protein Information Provided in Paper**")
+        info_fields = {
+            "supplier": "Supplier Information",
+            "uniprot": "UniProt Identifier",
+            "pdb": "PDB Identifier",
+            "sequence": "Complete Sequence",
+            "sequence_mass": "Sequence Mass",
+            "measured_mass": "Measured Mass"
+        }
+
+        info_data = {}
+        for key, label in info_fields.items():
+            if st.checkbox(label):
+                info_data[key] = st.text_input(f"Enter {label}")
             else:
-                st.success(f"This paper (DOI: {doi}) is not yet in the database. Please proceed with data entry.")
-                st.session_state.new_doi = doi
-                st.session_state.show_full_form = True
+                info_data[key] = None
 
-    if st.session_state.get('show_full_form', False):
-        with st.form("ccs_form"):
-            st.header("Enter Collision Cross Section Data")
-            st.markdown(f"Adding data for DOI: **{st.session_state.new_doi}**")
+        native = st.radio("Is this a native measurement?", ["Yes", "No"])
+        subunit_count = st.number_input("Number of non-covalently linked subunits", min_value=1, step=1)
 
-            col1, col2 = st.columns(2)
+        oligomer_type = "Monomer"
+        if subunit_count > 1:
+            oligomer_type = st.radio("Oligomer Type", ["Homo-oligomer", "Hetero-oligomer"])
 
-            with col1:
-                paper_title = st.text_input("Paper Title")
-                authors = st.text_input("Authors")
-                publication_year = st.number_input("Publication Year", min_value=1900, max_value=datetime.now().year, step=1)
-                journal = st.text_input("Journal")
+        ccs_count = st.number_input("Number of CCS values for this protein", min_value=1, step=1)
+        ccs_values = []
+        for i in range(int(ccs_count)):
+            st.markdown(f"**CCS Value #{i + 1}**")
+            charge = st.number_input(f"Charge State {i + 1}", step=1)
+            ccs = st.number_input(f"CCS Value {i + 1} (Å²)", min_value=0.0, format="%.4f")
+            ccs_values.append((charge, ccs))
 
-            with col2:
-                molecule = st.text_input("Molecule/Ion")
-                ccs_value = st.number_input("Collision Cross Section Value (Å²)", min_value=0.0, format="%.4f")
-                uncertainty = st.number_input("Uncertainty (±)", min_value=0.0, format="%.4f")
-                buffer_gas = st.selectbox("Buffer Gas", ["He", "N2", "CO2", "Ar", "Other"])
-                if buffer_gas == "Other":
-                    buffer_gas = st.text_input("Specify Buffer Gas")
+        notes = st.text_area("Notes on sample, instrument, or paper")
 
-                temperature = st.number_input("Temperature (K)", min_value=0.0)
-                method = st.selectbox("Measurement Method", ["Drift Tube", "TIMS", "TWIMS", "Theoretical", "Other"])
-                if method == "Other":
-                    method = st.text_input("Specify Method")
+        submitted_protein = st.form_submit_button("Add Protein Entry")
 
-            additional_notes = st.text_area("Additional Notes")
+        if submitted_protein:
+            st.session_state.protein_data.append({
+                "protein_name": protein_name,
+                "instrument": instrument,
+                "ims_type": ims_type,
+                "drift_gas": drift_gas,
+                "info_fields": info_data,
+                "native": native,
+                "subunit_count": subunit_count,
+                "oligomer_type": oligomer_type,
+                "ccs_values": ccs_values,
+                "notes": notes
+            })
+            st.session_state.protein_index += 1
+            st.success("Protein entry added.")
 
-            submitted = st.form_submit_button("Submit Data")
+    if st.session_state.protein_data:
+        if st.button("Finished Adding Proteins"):
+            st.session_state.adding_protein = False
 
-            if submitted:
-                if not paper_title or not authors or not molecule or ccs_value <= 0:
-                    st.error("Please fill in all required fields (Title, Authors, Molecule, CCS Value).")
-                    return
+# Show submission preview
+if not st.session_state.adding_protein and st.session_state.protein_data:
+    st.header("Submission Preview")
+    all_entries = []
+    for protein in st.session_state.protein_data:
+        for charge, ccs in protein["ccs_values"]:
+            entry = {
+                "doi": st.session_state.new_doi,
+                "paper_title": paper_title,
+                "authors": authors,
+                "publication_year": publication_year,
+                "journal": journal,
+                "protein_name": protein["protein_name"],
+                "instrument": protein["instrument"],
+                "ims_type": protein["ims_type"],
+                "drift_gas": protein["drift_gas"],
+                "native": protein["native"],
+                "subunit_count": protein["subunit_count"],
+                "oligomer_type": protein["oligomer_type"],
+                "charge_state": charge,
+                "ccs_value": ccs,
+                "notes": protein["notes"],
+                "submission_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            entry.update(protein["info_fields"])
+            all_entries.append(entry)
 
-                data = {
-                    "paper_title": [paper_title],
-                    "authors": [authors],
-                    "doi": [st.session_state.new_doi],
-                    "publication_year": [publication_year],
-                    "journal": [journal],
-                    "molecule": [molecule],
-                    "ccs_value": [ccs_value],
-                    "uncertainty": [uncertainty],
-                    "buffer_gas": [buffer_gas],
-                    "temperature": [temperature],
-                    "method": [method],
-                    "additional_notes": [additional_notes],
-                    "submission_date": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-                }
+    df = pd.DataFrame(all_entries)
+    st.dataframe(df)
 
-                df = pd.DataFrame(data)
-
-                st.subheader("Data to be submitted:")
-                st.dataframe(df)
-
-                # Push to GitHub
-                g = authenticate_github()
-                if g:
-                    repo = get_repository(g, st.secrets["REPO_NAME"])
-                    if repo:
-                        success, message = update_csv_in_github(repo, st.secrets["CSV_PATH"], df)
-                        if success:
-                            st.success(message)
-                            st.session_state.show_full_form = False
-                            st.session_state.pop('new_doi', None)
-                            st.experimental_rerun()
-                        else:
-                            st.error(message)
-                    else:
-                        st.error("Could not access the configured GitHub repository.")
-                else:
-                    st.error("GitHub authentication failed. Check your Streamlit secrets.")
-
-
+    if st.button("Submit All Data"):
+        from utils.github_utils import authenticate_direct, get_repository, update_csv_in_github
+        g = authenticate_direct()
+        repo = get_repository(g, st.session_state.repo_name)
+        if repo:
+            success, message = update_csv_in_github(repo, st.session_state.csv_path, df)
+            if success:
+                st.success("Data successfully submitted to GitHub.")
+                reset_protein_state()
+            else:
+                st.error(message)
+        else:
+            st.error("Repository access failed. Check your configuration.")
 
