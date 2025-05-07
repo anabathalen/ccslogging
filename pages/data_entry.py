@@ -1,4 +1,3 @@
-# pages/data_entry.py - Data entry page for logging multiple proteins and CCS data
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -18,7 +17,6 @@ def check_doi_exists(existing_data, doi):
 
 def get_paper_details(doi):
     """Fetch paper details based on DOI (you can integrate an external API like CrossRef or other)."""
-    # For now, let's assume paper details can be extracted from DOI (in reality, you'd use an API)
     return {
         "paper_title": "Sample Paper Title",
         "authors": "Author1, Author2",
@@ -58,88 +56,92 @@ def show_data_entry_page(existing_data):
                     st.session_state.paper_details = paper_details
 
     if st.session_state.get('show_full_form', False):
-        protein_data = []
-        while True:
-            st.header(f"Log Protein Data for Paper: {st.session_state.paper_details['paper_title']}")
+        if 'protein_data' not in st.session_state:
+            st.session_state.protein_data = []  # Initialize protein data
 
-            # Protein details form
-            with st.form(f"protein_form_{len(protein_data)}"):  # Use a unique key based on length of protein_data
-                protein_name = st.text_input("Protein/Ion Name")
-                instrument = st.selectbox("Instrument Used", [
-                    "Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", 
-                    "Bruker timsTOF", "Other (enter)"
-                ])
-                ims_type = st.selectbox("IMS Type", ["TWIMS", "DTIMS", "CYCLIC", "TIMS", "FAIMS", "Other (enter)"])
-                drift_gas = st.selectbox("Drift Gas", ["Nitrogen", "Helium", "Argon", "Other"])
-                if drift_gas == "Other":
-                    drift_gas = st.text_input("Specify Drift Gas")
-                
-                # Protein identifiers
-                uniprot = st.checkbox("Uniprot Identifier")
-                pdb = st.checkbox("PDB Identifier")
-                sequence = st.checkbox("Complete Sequence")
-                sequence_mass = st.checkbox("Sequence Mass")
-                measured_mass = st.checkbox("Measured Mass")
-                
-                # If checked, allow input
-                if uniprot:
-                    uniprot_id = st.text_input("Enter Uniprot Identifier")
-                if pdb:
-                    pdb_id = st.text_input("Enter PDB Identifier")
-                if sequence:
-                    protein_sequence = st.text_area("Enter Protein Sequence")
-                if sequence_mass:
-                    sequence_mass_value = st.number_input("Enter Sequence Mass (Da)", min_value=0.0)
-                if measured_mass:
-                    measured_mass_value = st.number_input("Enter Measured Mass (Da)", min_value=0.0)
+        protein_data = st.session_state.protein_data  # Use existing session data
 
-                # Non-covalently linked subunits
-                native_measurement = st.radio("Is this a native measurement?", ["Yes", "No"])
-                subunit_count = st.number_input("Number of Non-Covalently Linked Subunits", min_value=1)
+        # Protein data entry form
+        st.header(f"Log Protein Data for Paper: {st.session_state.paper_details['paper_title']}")
 
-                if subunit_count > 1:
-                    oligomer_type = st.radio("Is this a homo or hetero-oligomer?", ["Homo-oligomer", "Hetero-oligomer"])
+        with st.form(f"protein_form_{len(protein_data)}"):  # Ensure each form has a unique key
+            protein_name = st.text_input("Protein/Ion Name")
+            instrument = st.selectbox("Instrument Used", [
+                "Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", 
+                "Bruker timsTOF", "Other (enter)"
+            ])
+            ims_type = st.selectbox("IMS Type", ["TWIMS", "DTIMS", "CYCLIC", "TIMS", "FAIMS", "Other (enter)"])
+            drift_gas = st.selectbox("Drift Gas", ["Nitrogen", "Helium", "Argon", "Other"])
+            if drift_gas == "Other":
+                drift_gas = st.text_input("Specify Drift Gas")
+            
+            # Protein identifiers
+            uniprot = st.checkbox("Uniprot Identifier")
+            pdb = st.checkbox("PDB Identifier")
+            sequence = st.checkbox("Complete Sequence")
+            sequence_mass = st.checkbox("Sequence Mass")
+            measured_mass = st.checkbox("Measured Mass")
+            
+            # If checked, allow input
+            if uniprot:
+                uniprot_id = st.text_input("Enter Uniprot Identifier")
+            if pdb:
+                pdb_id = st.text_input("Enter PDB Identifier")
+            if sequence:
+                protein_sequence = st.text_area("Enter Protein Sequence")
+            if sequence_mass:
+                sequence_mass_value = st.number_input("Enter Sequence Mass (Da)", min_value=0.0)
+            if measured_mass:
+                measured_mass_value = st.number_input("Enter Measured Mass (Da)", min_value=0.0)
 
-                # CCS values
-                num_ccs_values = st.number_input("How many CCS values for this protein?", min_value=1)
-                ccs_data = []
-                for i in range(num_ccs_values):
-                    charge_state = st.number_input(f"Charge State {i+1}", min_value=1)
-                    ccs_value = st.number_input(f"CCS Value for Charge State {i+1} (Å²)", min_value=0.0)
-                    ccs_data.append((charge_state, ccs_value))
+            # Non-covalently linked subunits
+            native_measurement = st.radio("Is this a native measurement?", ["Yes", "No"])
+            subunit_count = st.number_input("Number of Non-Covalently Linked Subunits", min_value=1)
 
-                additional_notes = st.text_area("Additional Notes")
+            if subunit_count > 1:
+                oligomer_type = st.radio("Is this a homo or hetero-oligomer?", ["Homo-oligomer", "Hetero-oligomer"])
 
-                submit_protein = st.form_submit_button("Submit Protein Data")
+            # CCS values
+            num_ccs_values = st.number_input("How many CCS values for this protein?", min_value=1)
+            ccs_data = []
+            for i in range(num_ccs_values):
+                charge_state = st.number_input(f"Charge State {i+1}", min_value=1)
+                ccs_value = st.number_input(f"CCS Value for Charge State {i+1} (Å²)", min_value=0.0)
+                ccs_data.append((charge_state, ccs_value))
 
-                if submit_protein:
-                    protein_entry = {
-                        "protein_name": protein_name,
-                        "instrument": instrument,
-                        "ims_type": ims_type,
-                        "drift_gas": drift_gas,
-                        "uniprot": uniprot_id if uniprot else None,
-                        "pdb": pdb_id if pdb else None,
-                        "sequence": protein_sequence if sequence else None,
-                        "sequence_mass": sequence_mass_value if sequence_mass else None,
-                        "measured_mass": measured_mass_value if measured_mass else None,
-                        "native_measurement": native_measurement,
-                        "subunit_count": subunit_count,
-                        "oligomer_type": oligomer_type if subunit_count > 1 else None,
-                        "ccs_data": ccs_data,
-                        "additional_notes": additional_notes
-                    }
-                    protein_data.append(protein_entry)
+            additional_notes = st.text_area("Additional Notes")
 
-                    # Ask if there are more proteins to log
-                    more_proteins = st.radio("Do you want to log another protein?", ["Yes", "No"])
-                    if more_proteins == "No":
-                        st.session_state.protein_data = protein_data
-                        st.session_state.show_full_form = False
-                        break  # Break out of the loop once all proteins are logged
+            apply_button = st.form_submit_button("Apply Protein Data")
+
+            if apply_button:
+                protein_entry = {
+                    "protein_name": protein_name,
+                    "instrument": instrument,
+                    "ims_type": ims_type,
+                    "drift_gas": drift_gas,
+                    "uniprot": uniprot_id if uniprot else None,
+                    "pdb": pdb_id if pdb else None,
+                    "sequence": protein_sequence if sequence else None,
+                    "sequence_mass": sequence_mass_value if sequence_mass else None,
+                    "measured_mass": measured_mass_value if measured_mass else None,
+                    "native_measurement": native_measurement,
+                    "subunit_count": subunit_count,
+                    "oligomer_type": oligomer_type if subunit_count > 1 else None,
+                    "ccs_data": ccs_data,
+                    "additional_notes": additional_notes
+                }
+                protein_data.append(protein_entry)
+
+                st.session_state.protein_data = protein_data  # Save back to session
+
+                # Ask if there are more proteins to log
+                more_proteins = st.radio("Do you want to log another protein?", ["Yes", "No"])
+                if more_proteins == "No":
+                    st.session_state.show_full_form = False
+                    st.session_state.show_summary = True  # Move to summary after logging
 
         # Display logged proteins and allow submission
-        if st.session_state.get('protein_data', []):
+        if st.session_state.get('show_summary', False):
             st.subheader("Review Entered Data")
             for protein in st.session_state.protein_data:
                 st.write(f"**Protein Name**: {protein['protein_name']}")
@@ -148,7 +150,7 @@ def show_data_entry_page(existing_data):
                 st.write(f"**Drift Gas**: {protein['drift_gas']}")
                 st.write(f"**CCS Values**: {', '.join([f'Charge State {c[0]}: {c[1]}' for c in protein['ccs_data']])}")
                 st.write(f"**Additional Notes**: {protein['additional_notes']}")
-                
+
             submit_button = st.button("Submit All Data")
 
             if submit_button:
@@ -176,6 +178,4 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access the configured GitHub repository.")
                 else:
                     st.error("GitHub authentication failed. Check your Streamlit secrets.")
-
-
 
