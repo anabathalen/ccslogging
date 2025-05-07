@@ -1,15 +1,17 @@
 # app.py - Main application file
 import streamlit as st
 import pandas as pd
-import io
+import os
 
 # Import page modules
 from pages.data_entry import show_data_entry_page
 from pages.data_browser import show_data_browser_page
-from utils.github_utils import get_repository, get_existing_data
 
 # Import authentication module
 from auth import check_password, is_admin, logout
+
+# Constants
+LOCAL_DATA_PATH = "data/local_data.csv"
 
 # Set page configuration
 st.set_page_config(
@@ -42,101 +44,44 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def load_local_data():
+    """Load existing data from local CSV if it exists."""
+    if os.path.exists(LOCAL_DATA_PATH):
+        try:
+            return pd.read_csv(LOCAL_DATA_PATH)
+        except Exception as e:
+            st.error(f"Error loading local data: {e}")
+            return pd.DataFrame()
+    return pd.DataFrame()
+
 def main():
     """Main function to run the Streamlit app."""
-    # Check if user is authenticated
     if not check_password():
         return
-    
-    # Sidebar for configuration
+
+    # Sidebar: Logout + Navigation
     with st.sidebar:
-        # Add logout button at the top of the sidebar
         logout()
-        
-        st.header("Database Configuration")
-        
-        # GitHub configuration
-        if "repo_name" not in st.session_state:
-            st.session_state.repo_name = ""
-        if "csv_path" not in st.session_state:
-            st.session_state.csv_path = "data/collision_cross_sections.csv"
-            
-        repo_name = st.text_input("Repository Name (format: username/repo)", value=st.session_state.repo_name)
-        csv_path = st.text_input("CSV File Path", value=st.session_state.csv_path)
-        
-        # Save configs to session state
-        st.session_state.repo_name = repo_name
-        st.session_state.csv_path = csv_path
-        
-        if st.button("Test GitHub Connection"):
-            # Using direct API access instead of GitHub authentication
-            if repo_name:
-                # Note: This will need to be modified depending on how you want to handle GitHub access
-                # You may need to add API tokens or other authentication methods
-                from utils.github_utils import authenticate_direct
-                
-                g = authenticate_direct()
-                if g:
-                    repo = get_repository(g, repo_name)
-                    if repo:
-                        st.success(f"Successfully connected to {repo_name}")
-                        st.session_state.github_configured = True
-                        
-                        # Try to load existing data
-                        existing_data = get_existing_data(repo, csv_path)
-                        if existing_data is not None:
-                            st.session_state.existing_data = existing_data
-                            if existing_data.empty:
-                                st.info("No existing data found. Database will be created on first submission.")
-                            else:
-                                st.info(f"Successfully loaded {len(existing_data)} entries from database.")
-                    else:
-                        st.error("Could not access repository. Check the repository name and your permissions.")
-                        st.session_state.github_configured = False
-                else:
-                    st.error("Could not authenticate with GitHub. Check your configuration.")
-                    st.session_state.github_configured = False
-            else:
-                st.error("Please provide a repository name.")
-                st.session_state.github_configured = False
-        
-        # Navigation
         st.header("Navigation")
         page = st.radio("Select Page", ["Data Entry", "Browse Database"])
         st.session_state.page = page
-    
+
+    # Load local data
+    existing_data = load_local_data()
+
     # Main content based on selected page
-    if st.session_state.get("github_configured", False):
-        existing_data = st.session_state.get("existing_data", None)
-        
-        if st.session_state.page == "Data Entry":
-            show_data_entry_page(existing_data)
-        else:  # Browse Database
-            show_data_browser_page(existing_data)
+    if st.session_state.page == "Data Entry":
+        show_data_entry_page(existing_data)
     else:
-        st.title("Collision Cross Section Database")
-        st.info("⚙️ Please configure your GitHub connection in the sidebar to get started.")
-        st.markdown("""
-        ### Welcome to the Collision Cross Section Database App
-        
-        This application allows you to:
-        
-        1. **Log new collision cross section data** from scientific papers
-        2. **Browse and search** the existing database
-        3. **Export data** for analysis
-        
-        To begin, please configure your GitHub repository connection in the sidebar.
-        """)
+        show_data_browser_page(existing_data)
 
 if __name__ == "__main__":
-    # Initialize session state variables
-    if "github_configured" not in st.session_state:
-        st.session_state.github_configured = False
     if "show_full_form" not in st.session_state:
         st.session_state.show_full_form = False
     if "page" not in st.session_state:
         st.session_state.page = "Data Entry"
     if "password_correct" not in st.session_state:
         st.session_state.password_correct = False
-        
+
     main()
+
