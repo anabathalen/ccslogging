@@ -1,10 +1,1 @@
-paper_title,authors,doi,publication_year,journal,molecule,ccs_value,uncertainty,buffer_gas,temperature,method,additional_notes,submission_date,protein_name,instrument,ims_type,drift_gas,uniprot,pdb,sequence,sequence_mass,measured_mass,native_measurement,subunit_count,oligomer_type,ccs_data
-fghfgjkhjkghjkhg,"ghjkghjkghjkghj, kdjhfglkjsdf, jfhgdfgh",10.1126/science.aaf4388,2012,dgfhdfghdf,dfghdfgh,0.02,0.02,He,0.06,TWIMS,,2025-05-07 13:36:35,,,,,,,,,,,,,
-tjghjf,fghjfghj,10.1126/science.aaf4389,1900,fghjfghj,fghjfghj,0.02,0.02,He,0.02,Drift Tube,,2025-05-07 13:38:21,,,,,,,,,,,,,
-Sample Paper Title,"Author1, Author2",10.4567/skjdhfgs,2022,Sample Journal,,,,,,,,,sdfgsdfg,Waters Synapt,TWIMS,Nitrogen,,,,,,No,3.0,Homo-oligomer,"[(1, 0.0), (1, 0.0), (1, 0.0)]"
-Sample Paper Title,"Author1, Author2",10.4567/skjdhfgs,2022,Sample Journal,,,,,,,,,,Waters Synapt,TWIMS,Nitrogen,,,,,,Yes,1.0,,"[(1, 0.0)]"
-Sample Paper Title,"Author1, Author2",10.4567/skjdhfgs,2022,Sample Journal,,,,,,,,,fdghdfgh,Waters Synapt,TWIMS,Nitrogen,,,,,,Yes,1.0,,"[(1, 0.0)]"
-Sample Paper Title,"Author1, Author2",10.4567/skjdhfgs,2022,Sample Journal,,,,,,,,,fdghdfgh,Waters Synapt,TWIMS,Nitrogen,ghjkghjk,ghjkghk,,1234.0,1244.0,No,3.0,Homo-oligomer,"[(1, 0.0), (1, 0.0), (1, 0.0)]"
-Sample Paper Title,"Author1, Author2",10.4567/skjdhfgs,2022,Sample Journal,,,,,,,sdfgsdghfdgh fghdfgh,,fdghdfgh,Waters Synapt,TWIMS,Nitrogen,ghjkghjk,ghjkghk,,1234.0,1244.0,No,3.0,Homo-oligomer,"[(4, 345.0), (5, 456.0), (6, 567.0)]"
-Sample Paper Title,"Author1, Author2",10.4567/skjdhfgs,2022,Sample Journal,,,,,,,sdfgsdghfdgh fghdfgh,,yuio,Waters Synapt,TWIMS,Nitrogen,ghjkghjk,ghjkghk,,1234.0,1244.0,No,3.0,Homo-oligomer,"[(4, 345.0), (5, 456.0), (6, 567.0)]"
-Sample Paper Title,"Author1, Author2",10.1234/qwerty,2022,Sample Journal,,,,,,,,,Testing,Waters Vion,TWIMS,Nitrogen,U12345X,w3rg,sdfgsdfgsdfgsdfg,15000.0,,Yes,4.0,Homo-oligomer,"[(3, 400.0), (4, 500.0), (5, 600.0), (6, 700.0)]"
+
