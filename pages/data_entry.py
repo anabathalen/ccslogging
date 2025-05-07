@@ -1,3 +1,30 @@
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+import re
+from utils.github_utils import authenticate_github, get_repository, update_csv_in_github, get_existing_data
+
+def validate_doi(doi):
+    """Validate DOI format."""
+    doi_pattern = r'^10\.\d{4,9}/[-._;()/:A-Z0-9]+$'
+    return re.match(doi_pattern, doi, re.IGNORECASE) is not None
+
+def check_doi_exists(existing_data, doi):
+    """Check if DOI already exists in the database."""
+    if existing_data is None or existing_data.empty:
+        return False
+    return doi in existing_data['doi'].values
+
+def get_paper_details(doi):
+    """Fetch paper details based on DOI (you can integrate an external API like CrossRef or other)."""
+    return {
+        "paper_title": "Sample Paper Title",
+        "authors": "Author1, Author2",
+        "doi": doi,
+        "publication_year": 2022,
+        "journal": "Sample Journal"
+    }
+
 def show_data_entry_page(existing_data):
     """Display data entry page for logging proteins and CCS data."""
     st.title("Collision Cross Section Data Entry")
@@ -137,5 +164,3 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access GitHub repository.")
                 else:
                     st.error("GitHub authentication failed.")
-
-
