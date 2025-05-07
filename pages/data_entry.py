@@ -75,23 +75,23 @@ def show_data_entry_page(existing_data):
             if drift_gas == "Other":
                 drift_gas = st.text_input("Specify Drift Gas")
             
-            # Protein identifiers
-            uniprot = st.checkbox("Uniprot Identifier")
-            pdb = st.checkbox("PDB Identifier")
-            sequence = st.checkbox("Complete Sequence")
-            sequence_mass = st.checkbox("Sequence Mass")
-            measured_mass = st.checkbox("Measured Mass")
+            # Protein identifiers with Yes/No radio buttons
+            uniprot = st.radio("Include Uniprot Identifier?", ["No", "Yes"])
+            pdb = st.radio("Include PDB Identifier?", ["No", "Yes"])
+            sequence = st.radio("Include Complete Sequence?", ["No", "Yes"])
+            sequence_mass = st.radio("Include Sequence Mass?", ["No", "Yes"])
+            measured_mass = st.radio("Include Measured Mass?", ["No", "Yes"])
             
-            # If checked, allow input
-            if uniprot:
+            # Show input fields if "Yes" is selected
+            if uniprot == "Yes":
                 uniprot_id = st.text_input("Enter Uniprot Identifier")
-            if pdb:
+            if pdb == "Yes":
                 pdb_id = st.text_input("Enter PDB Identifier")
-            if sequence:
+            if sequence == "Yes":
                 protein_sequence = st.text_area("Enter Protein Sequence")
-            if sequence_mass:
+            if sequence_mass == "Yes":
                 sequence_mass_value = st.number_input("Enter Sequence Mass (Da)", min_value=0.0)
-            if measured_mass:
+            if measured_mass == "Yes":
                 measured_mass_value = st.number_input("Enter Measured Mass (Da)", min_value=0.0)
 
             # Non-covalently linked subunits
@@ -119,11 +119,11 @@ def show_data_entry_page(existing_data):
                     "instrument": instrument,
                     "ims_type": ims_type,
                     "drift_gas": drift_gas,
-                    "uniprot": uniprot_id if uniprot else None,
-                    "pdb": pdb_id if pdb else None,
-                    "sequence": protein_sequence if sequence else None,
-                    "sequence_mass": sequence_mass_value if sequence_mass else None,
-                    "measured_mass": measured_mass_value if measured_mass else None,
+                    "uniprot": uniprot_id if uniprot == "Yes" else None,
+                    "pdb": pdb_id if pdb == "Yes" else None,
+                    "sequence": protein_sequence if sequence == "Yes" else None,
+                    "sequence_mass": sequence_mass_value if sequence_mass == "Yes" else None,
+                    "measured_mass": measured_mass_value if measured_mass == "Yes" else None,
                     "native_measurement": native_measurement,
                     "subunit_count": subunit_count,
                     "oligomer_type": oligomer_type if subunit_count > 1 else None,
@@ -178,4 +178,5 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access the configured GitHub repository.")
                 else:
                     st.error("GitHub authentication failed. Check your Streamlit secrets.")
+
 
