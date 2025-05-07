@@ -63,7 +63,7 @@ def show_data_entry_page(existing_data):
             st.header(f"Log Protein Data for Paper: {st.session_state.paper_details['paper_title']}")
 
             # Protein details form
-            with st.form("protein_form"):
+            with st.form(f"protein_form_{len(protein_data)}"):  # Use a unique key based on length of protein_data
                 protein_name = st.text_input("Protein/Ion Name")
                 instrument = st.selectbox("Instrument Used", [
                     "Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", 
@@ -136,8 +136,7 @@ def show_data_entry_page(existing_data):
                     if more_proteins == "No":
                         st.session_state.protein_data = protein_data
                         st.session_state.show_full_form = False
-                        st.experimental_rerun()
-                        st.stop()
+                        break  # Break out of the loop once all proteins are logged
 
         # Display logged proteins and allow submission
         if st.session_state.get('protein_data', []):
@@ -177,5 +176,6 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access the configured GitHub repository.")
                 else:
                     st.error("GitHub authentication failed. Check your Streamlit secrets.")
+
 
 
