@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import re
+import requests
 from utils.github_utils import authenticate_github, get_repository, update_csv_in_github, get_existing_data
 
 # ----------------------------
@@ -22,14 +23,60 @@ def check_doi_exists(existing_data, doi):
     return doi in existing_data['doi'].values
 
 def get_paper_details(doi):
-    """Placeholder for fetching paper details using an external API."""
-    return {
-        "paper_title": "Sample Paper Title",
-        "authors": "Author1, Author2",
-        "doi": doi,
-        "publication_year": 2022,
-        "journal": "Sample Journal"
-    }
+    """
+    Fetch paper metadata from CrossRef using the DOI.
+    Returns a dictionary with paper_title, authors, journal, publication_year, and doi.
+    """
+    url = f"https://api.crossref.org/works/{doi}"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        item = data["message"]
+
+        # Extract title
+        title = item.get("title", [""])[0]
+
+        # Extract authors
+        authors = item.get("author", [])
+        author_names = []
+        for author in authors:
+            given = author.get("given", "")
+            family = author.get("family", "")
+            full_name = f"{given} {family}".strip()
+            if full_name:
+                author_names.append(full_name)
+        authors_str = ", ".join(author_names)
+
+        # Extract journal name
+        journal = item.get("container-title", [""])[0]
+
+        # Extract publication year
+        publication_year = None
+        if "published-print" in item and "date-parts" in item["published-print"]:
+            publication_year = item["published-print"]["date-parts"][0][0]
+        elif "published-online" in item and "date-parts" in item["published-online"]:
+            publication_year = item["published-online"]["date-parts"][0][0]
+        elif "issued" in item and "date-parts" in item["issued"]:
+            publication_year = item["issued"]["date-parts"][0][0]
+
+        return {
+            "paper_title": title,
+            "authors": authors_str,
+            "journal": journal,
+            "publication_year": publication_year,
+            "doi": doi
+        }
+    except requests.RequestException as e:
+        print(f"Error fetching metadata for DOI {doi}: {e}")
+        return {
+            "paper_title": "",
+            "authors": "",
+            "journal": "",
+            "publication_year": None,
+            "doi": doi
+        }
+
 
 # ----------------------------
 # Main App Function
