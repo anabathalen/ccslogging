@@ -1,83 +1,62 @@
-# utils/github_utils.py - GitHub integration utilities
-import streamlit as st
-import pandas as pd
 from github import Github
-import github
-from datetime import datetime
-import io
+import pandas as pd
+from io import StringIO
+import streamlit as st
+import base64
 
 def authenticate_github():
-    """Authenticate with GitHub using personal access token."""
-    token = st.secrets.get("github_token", None)
-    if token is None:
-        token = st.text_input("Enter your GitHub Personal Access Token", type="password")
-        if not token:
-            st.warning("Please enter a valid GitHub token to proceed.")
-            return None
-    return Github(token)
+    """Authenticate to GitHub using a token stored in Streamlit secrets."""
+    token = st.secrets.get("GITHUB_TOKEN")
+    if token:
+        return Github(token)
+    return None
 
 def get_repository(g, repo_name):
-    """Get the GitHub repository."""
+    """Get the GitHub repository object."""
     try:
         return g.get_repo(repo_name)
-    except github.GithubException as e:
-        st.error(f"Error accessing repository: {e}")
-        return None
-
-def get_existing_data(repo, file_path):
-    """Get existing data from CSV file in GitHub repository."""
-    try:
-        contents = repo.get_contents(file_path)
-        return pd.read_csv(io.StringIO(contents.decoded_content.decode("utf-8")))
-    except github.GithubException as e:
-        if e.status == 404:  # File not found
-            return pd.DataFrame()
-        else:
-            st.error(f"Error fetching data: {e}")
-            return None
     except Exception as e:
-        st.error(f"Error reading data: {e}")
+        st.error(f"Failed to access repository: {e}")
         return None
 
-def update_csv_in_github(repo, file_path, data_df):
-    """Update CSV file in GitHub repository."""
+def get_existing_data(repo, csv_path):
+    """Download and return the existing CSV data from GitHub as a DataFrame."""
     try:
-        # Try to get the file content first
+        file = repo.get_contents(csv_path)
+        content = file.decoded_content.decode("utf-8")
+        return pd.read_csv(StringIO(content))
+    except Exception as e:
+        st.warning(f"Could not load existing data: {e}")
+        return pd.DataFrame()
+
+def update_csv_in_github(repo, csv_path, new_data):
+    """Update or create the CSV file in GitHub with new data."""
+    try:
+        # Load existing data
+        existing_df = get_existing_data(repo, csv_path)
+        updated_df = pd.concat([existing_df, new_data], ignore_index=True)
+
+        # Convert DataFrame to CSV string
+        csv_string = updated_df.to_csv(index=False)
+        encoded_content = csv_string.encode("utf-8")
+
+        # Commit update
         try:
-            contents = repo.get_contents(file_path)
-            existing_data = pd.read_csv(io.StringIO(contents.decoded_content.decode("utf-8")))
-            
-            # Append new data
-            updated_data = pd.concat([existing_data, data_df], ignore_index=True)
-            
-            # Prepare commit message
-            commit_message = f"Update collision cross section data - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            
-            # Convert DataFrame to CSV string
-            csv_content = updated_data.to_csv(index=False)
-            
-            # Update file in repository
+            contents = repo.get_contents(csv_path)
             repo.update_file(
-                path=contents.path,
-                message=commit_message,
-                content=csv_content,
+                path=csv_path,
+                message="Update CCS data via Streamlit app",
+                content=encoded_content,
                 sha=contents.sha
             )
-            return True, "Data successfully updated in the repository."
-            
-        except github.GithubException as e:
-            if e.status == 404:  # File not found
-                # Create new file
-                commit_message = f"Create collision cross section data file - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                csv_content = data_df.to_csv(index=False)
-                repo.create_file(
-                    path=file_path,
-                    message=commit_message,
-                    content=csv_content
-                )
-                return True, "New data file created in the repository."
-            else:
-                raise e
-                
+        except:
+            # File doesn't exist, so create it
+            repo.create_file(
+                path=csv_path,
+                message="Create CCS database via Streamlit app",
+                content=encoded_content
+            )
+        return True, "✅ Data successfully updated to GitHub."
     except Exception as e:
-        return False, f"Error updating repository: {str(e)}"
+        return False, f"❌ Failed to update GitHub: {e}"
+
