@@ -74,7 +74,8 @@ def show_data_entry_page(existing_data):
     if st.session_state.get('show_full_form', False):
         st.header(f"Log Protein Data for Paper: {st.session_state.paper_details['paper_title']}")
 
-        with st.form("protein_form"):
+        # Start the form
+        with st.form("protein_form", clear_on_submit=False):  # Ensure the form data isn't cleared after each submission
             # Protein details section
             protein_name = st.text_input("Protein/Ion Name", key="protein_name")
             instrument = st.selectbox("Instrument Used", ["Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", 
@@ -112,11 +113,12 @@ def show_data_entry_page(existing_data):
 
             additional_notes = st.text_area("Additional Notes (sample, instrument, etc.)", key="additional_notes")
 
-            # 'Ready to Submit' button
+            # 'Ready to Submit' button (this is the only submit action)
             submit_protein = st.form_submit_button("Ready to Submit")
 
+            # Store form data in session state only when "Ready to Submit" is clicked
             if submit_protein:
-                # Store form data in session state only when ready to submit
+                # Store data in session state
                 protein_entry = {
                     "protein_name": protein_name,
                     "instrument": instrument,
@@ -135,6 +137,7 @@ def show_data_entry_page(existing_data):
                 }
                 st.session_state.protein_data.append(protein_entry)
 
+                # Ask if more proteins need to be entered
                 more_proteins = st.radio("Do you want to log another protein?", ["Yes", "No"], key=f"more_{len(st.session_state.protein_data)}")
                 if more_proteins == "No":
                     st.session_state.show_full_form = False
@@ -155,6 +158,7 @@ def show_data_entry_page(existing_data):
                     st.markdown(f"- Charge {charge}: {ccs} Å²")
                 st.markdown(f"**Notes:** {protein['additional_notes']}")
 
+            # Submit all data once ready
             submit_all = st.button("Submit All Protein Data")
 
             if submit_all:
@@ -181,3 +185,4 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access GitHub repository.")
                 else:
                     st.error("GitHub authentication failed.")
+
