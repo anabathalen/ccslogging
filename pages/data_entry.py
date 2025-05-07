@@ -34,10 +34,10 @@ def show_data_entry_page(existing_data):
         col1, col2 = st.columns([3, 1])
 
         with col1:
-            doi = st.text_input("Enter DOI (e.g., 10.1021/example)")
+            doi = st.text_input("Enter DOI (e.g., 10.1021/example)", key="doi")
 
         with col2:
-            check_button = st.button("Check DOI")
+            check_button = st.button("Check DOI", key="check_button")
 
         if check_button and doi:
             if not validate_doi(doi):
@@ -65,39 +65,39 @@ def show_data_entry_page(existing_data):
         st.header(f"Log Protein Data for Paper: {st.session_state.paper_details['paper_title']}")
 
         with st.form(f"protein_form_{len(protein_data)}"):  # Ensure each form has a unique key
-            protein_name = st.text_input("Protein/Ion Name")
+            protein_name = st.text_input("Protein/Ion Name", key="protein_name")
             instrument = st.selectbox("Instrument Used", [
                 "Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", 
                 "Bruker timsTOF", "Other (enter)"
-            ])
-            ims_type = st.selectbox("IMS Type", ["TWIMS", "DTIMS", "CYCLIC", "TIMS", "FAIMS", "Other (enter)"])
-            drift_gas = st.selectbox("Drift Gas", ["Nitrogen", "Helium", "Argon", "Other"])
+            ], key="instrument")
+            ims_type = st.selectbox("IMS Type", ["TWIMS", "DTIMS", "CYCLIC", "TIMS", "FAIMS", "Other (enter)"], key="ims_type")
+            drift_gas = st.selectbox("Drift Gas", ["Nitrogen", "Helium", "Argon", "Other"], key="drift_gas")
             if drift_gas == "Other":
-                drift_gas = st.text_input("Specify Drift Gas")
+                drift_gas = st.text_input("Specify Drift Gas", key="drift_gas_other")
             
             # Protein identifiers with instructions to leave blank if not provided
-            uniprot_id = st.text_input("Enter Uniprot Identifier (Leave blank if not available)")
-            pdb_id = st.text_input("Enter PDB Identifier (Leave blank if not available)")
-            protein_sequence = st.text_area("Enter Protein Sequence (Leave blank if not available)")
-            sequence_mass_value = st.number_input("Enter Sequence Mass (Da) (Leave blank if not available)", min_value=0.0)
-            measured_mass_value = st.number_input("Enter Measured Mass (Da) (Leave blank if not available)", min_value=0.0)
+            uniprot_id = st.text_input("Enter Uniprot Identifier (Leave blank if not available)", key="uniprot_id")
+            pdb_id = st.text_input("Enter PDB Identifier (Leave blank if not available)", key="pdb_id")
+            protein_sequence = st.text_area("Enter Protein Sequence (Leave blank if not available)", key="protein_sequence")
+            sequence_mass_value = st.number_input("Enter Sequence Mass (Da) (Leave blank if not available)", min_value=0.0, key="sequence_mass_value")
+            measured_mass_value = st.number_input("Enter Measured Mass (Da) (Leave blank if not available)", min_value=0.0, key="measured_mass_value")
 
             # Non-covalently linked subunits
-            native_measurement = st.radio("Is this a native measurement?", ["Yes", "No"])
-            subunit_count = st.number_input("Number of Non-Covalently Linked Subunits", min_value=1)
+            native_measurement = st.radio("Is this a native measurement?", ["Yes", "No"], key="native_measurement")
+            subunit_count = st.number_input("Number of Non-Covalently Linked Subunits", min_value=1, key="subunit_count")
 
             if subunit_count > 1:
-                oligomer_type = st.radio("Is this a homo or hetero-oligomer?", ["Homo-oligomer", "Hetero-oligomer"])
+                oligomer_type = st.radio("Is this a homo or hetero-oligomer?", ["Homo-oligomer", "Hetero-oligomer"], key="oligomer_type")
 
             # CCS values
-            num_ccs_values = st.number_input("How many CCS values for this protein?", min_value=1)
+            num_ccs_values = st.number_input("How many CCS values for this protein?", min_value=1, key="num_ccs_values")
             ccs_data = []
             for i in range(num_ccs_values):
-                charge_state = st.number_input(f"Charge State {i+1}", min_value=1)
-                ccs_value = st.number_input(f"CCS Value for Charge State {i+1} (Å²)", min_value=0.0)
+                charge_state = st.number_input(f"Charge State {i+1}", min_value=1, key=f"charge_state_{i+1}")
+                ccs_value = st.number_input(f"CCS Value for Charge State {i+1} (Å²)", min_value=0.0, key=f"ccs_value_{i+1}")
                 ccs_data.append((charge_state, ccs_value))
 
-            additional_notes = st.text_area("Additional Notes")
+            additional_notes = st.text_area("Additional Notes", key="additional_notes")
 
             apply_button = st.form_submit_button("Apply Protein Data")
 
@@ -123,7 +123,7 @@ def show_data_entry_page(existing_data):
                 st.session_state.protein_data = protein_data  # Save back to session
 
                 # Ask if there are more proteins to log
-                more_proteins = st.radio("Do you want to log another protein?", ["Yes", "No"])
+                more_proteins = st.radio("Do you want to log another protein?", ["Yes", "No"], key="more_proteins")
                 if more_proteins == "No":
                     st.session_state.show_full_form = False
                     st.session_state.show_summary = True  # Move to summary after logging
@@ -139,7 +139,7 @@ def show_data_entry_page(existing_data):
                 st.write(f"**CCS Values**: {', '.join([f'Charge State {c[0]}: {c[1]}' for c in protein['ccs_data']])}")
                 st.write(f"**Additional Notes**: {protein['additional_notes']}")
 
-            submit_button = st.button("Submit All Data")
+            submit_button = st.button("Submit All Data", key="submit_button")
 
             if submit_button:
                 # Create a DataFrame from all logged proteins
@@ -166,4 +166,5 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access the configured GitHub repository.")
                 else:
                     st.error("GitHub authentication failed. Check your Streamlit secrets.")
+
 
