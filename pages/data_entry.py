@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 import re
-from utils.github_utils import authenticate_github, get_repository, update_csv_in_github, get_existing_data
+from datetime import datetime
 import requests
+from utils.github_utils import authenticate_github, get_repository, update_csv_in_github
 
 # Function to validate DOI format
 def validate_doi(doi):
@@ -73,10 +73,13 @@ def show_data_entry_page(existing_data):
                     st.session_state.show_full_form = True
                     st.session_state.paper_details = paper_details
                     st.session_state.protein_data = []
+                    st.session_state.protein_counter = 1  # Start at protein 1
 
     # If form for data entry is ready
     if st.session_state.get('show_full_form', False):
-        st.header(f"Log Protein Data for Paper: {st.session_state.paper_details['paper_title']}")
+        protein_number = st.session_state.get("protein_counter", 1)
+
+        st.header(f"Log Protein {protein_number} Data for Paper: {st.session_state.paper_details['paper_title']}")
 
         # Start the form without submitting until explicitly pressed 'Ready to Submit'
         with st.form("protein_form", clear_on_submit=False):
@@ -143,24 +146,16 @@ def show_data_entry_page(existing_data):
 
                 # Ask if more proteins need to be entered
                 more_proteins = st.radio("Would you like to log another protein?", ["Yes", "No"], key="more_proteins")
-                if more_proteins == "No":
-                    st.session_state.show_full_form = False  # Hide form and go to review page
+                if more_proteins == "Yes":
+                    st.session_state.protein_counter += 1  # Increment the protein counter for next entry
+                    st.session_state.show_full_form = True  # Continue showing the form
+                else:
+                    st.session_state.show_full_form = False  # Stop the process
 
-        # Show the review page when user selects 'No'
+        # If no more proteins need to be logged, submit the data
         if not st.session_state.get('show_full_form', True) and st.session_state.get('protein_data', []):
-            st.subheader("Review Entered Data")
-            for protein in st.session_state.protein_data:
-                st.markdown(f"**Protein Name:** {protein['protein_name']}")
-                st.markdown(f"**Instrument:** {protein['instrument']}")
-                st.markdown(f"**IMS Type:** {protein['ims_type']}")
-                st.markdown(f"**Drift Gas:** {protein['drift_gas']}")
-                st.markdown(f"**Native Measurement:** {protein['native_measurement']}")
-                st.markdown(f"**Subunits:** {protein['subunit_count']}")
-                st.markdown(f"**Oligomer Type:** {protein['oligomer_type']}")
-                st.markdown("**CCS Values:**")
-                for charge, ccs in protein['ccs_data']:
-                    st.markdown(f"- Charge {charge}: {ccs} Å²")
-                st.markdown(f"**Notes:** {protein['additional_notes']}")
+            st.subheader("All Protein Data Submitted")
+            st.write(st.session_state.protein_data)
 
             # Button to submit all protein data
             submit_all = st.button("Submit All Protein Data")
@@ -190,3 +185,4 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access GitHub repository.")
                 else:
                     st.error("GitHub authentication failed.")
+
