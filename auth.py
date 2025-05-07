@@ -64,7 +64,8 @@ def check_password():
     if st.button("Login"):
         if password_entered():
             st.success("Logged in successfully")
-            st.experimental_rerun()
+            # Use st.rerun() instead of experimental_rerun
+            st.rerun()
         else:
             st.error("Invalid username or password")
     
@@ -92,4 +93,5 @@ def logout():
     if st.button("Logout"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
-        st.experimental_rerun()
+        # Use st.rerun() instead of experimental_rerun
+        st.rerun()
