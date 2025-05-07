@@ -1,14 +1,15 @@
 # app.py - Main application file
 import streamlit as st
 import pandas as pd
-from github import Github
-import github
 import io
 
 # Import page modules
 from pages.data_entry import show_data_entry_page
 from pages.data_browser import show_data_browser_page
-from utils.github_utils import authenticate_github, get_repository, get_existing_data
+from utils.github_utils import get_repository, get_existing_data
+
+# Import authentication module
+from auth import check_password, is_admin, logout
 
 # Set page configuration
 st.set_page_config(
@@ -43,8 +44,15 @@ st.markdown("""
 
 def main():
     """Main function to run the Streamlit app."""
-    # Sidebar for GitHub configuration
+    # Check if user is authenticated
+    if not check_password():
+        return
+    
+    # Sidebar for configuration
     with st.sidebar:
+        # Add logout button at the top of the sidebar
+        logout()
+        
         st.header("Database Configuration")
         
         # GitHub configuration
@@ -61,26 +69,35 @@ def main():
         st.session_state.csv_path = csv_path
         
         if st.button("Test GitHub Connection"):
-            g = authenticate_github()
-            if g and repo_name:
-                repo = get_repository(g, repo_name)
-                if repo:
-                    st.success(f"Successfully connected to {repo_name}")
-                    st.session_state.github_configured = True
-                    
-                    # Try to load existing data
-                    existing_data = get_existing_data(repo, csv_path)
-                    if existing_data is not None:
-                        st.session_state.existing_data = existing_data
-                        if existing_data.empty:
-                            st.info("No existing data found. Database will be created on first submission.")
-                        else:
-                            st.info(f"Successfully loaded {len(existing_data)} entries from database.")
+            # Using direct API access instead of GitHub authentication
+            if repo_name:
+                # Note: This will need to be modified depending on how you want to handle GitHub access
+                # You may need to add API tokens or other authentication methods
+                from utils.github_utils import authenticate_direct
+                
+                g = authenticate_direct()
+                if g:
+                    repo = get_repository(g, repo_name)
+                    if repo:
+                        st.success(f"Successfully connected to {repo_name}")
+                        st.session_state.github_configured = True
+                        
+                        # Try to load existing data
+                        existing_data = get_existing_data(repo, csv_path)
+                        if existing_data is not None:
+                            st.session_state.existing_data = existing_data
+                            if existing_data.empty:
+                                st.info("No existing data found. Database will be created on first submission.")
+                            else:
+                                st.info(f"Successfully loaded {len(existing_data)} entries from database.")
+                    else:
+                        st.error("Could not access repository. Check the repository name and your permissions.")
+                        st.session_state.github_configured = False
                 else:
-                    st.error("Could not access repository. Check the repository name and your permissions.")
+                    st.error("Could not authenticate with GitHub. Check your configuration.")
                     st.session_state.github_configured = False
             else:
-                st.error("Please provide both GitHub token and repository name.")
+                st.error("Please provide a repository name.")
                 st.session_state.github_configured = False
         
         # Navigation
@@ -119,5 +136,7 @@ if __name__ == "__main__":
         st.session_state.show_full_form = False
     if "page" not in st.session_state:
         st.session_state.page = "Data Entry"
+    if "password_correct" not in st.session_state:
+        st.session_state.password_correct = False
         
     main()
