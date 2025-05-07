@@ -116,6 +116,7 @@ def show_data_entry_page(existing_data):
             submit_protein = st.form_submit_button("Ready to Submit")
 
             if submit_protein:
+                # Store form data in session state only when ready to submit
                 protein_entry = {
                     "protein_name": protein_name,
                     "instrument": instrument,
@@ -180,5 +181,3 @@ def show_data_entry_page(existing_data):
                         st.error("Could not access GitHub repository.")
                 else:
                     st.error("GitHub authentication failed.")
-
-
