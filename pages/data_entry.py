@@ -2,187 +2,179 @@ import streamlit as st
 import pandas as pd
 import re
 from datetime import datetime
+from utils.github_utils import authenticate_github, get_repository, update_csv_in_github, get_existing_data
 import requests
-from utils.github_utils import authenticate_github, get_repository, update_csv_in_github
 
-# Function to validate DOI format
+# Validate DOI format using regex
 def validate_doi(doi):
-    """Validate DOI format using regular expression."""
     doi_pattern = r'^10\.\d{4,9}/[-._;()/:A-Z0-9]+$'
     return re.match(doi_pattern, doi, re.IGNORECASE) is not None
 
-# Function to check if DOI already exists in the database
+# Check if DOI exists in current GitHub database
 def check_doi_exists(existing_data, doi):
-    """Check if DOI is already in the database."""
     if existing_data is None or existing_data.empty:
         return False
     return doi in existing_data['doi'].values
 
-# Function to fetch paper details using DOI (CrossRef API)
+# Use CrossRef API to fetch paper details based on DOI
 def get_paper_details(doi):
-    """Fetch paper details from CrossRef using DOI."""
-    response = requests.get(f"https://api.crossref.org/works/{doi}")
-    if response.status_code == 200:
-        data = response.json()['message']
+    try:
+        url = f"https://api.crossref.org/works/{doi}"
+        response = requests.get(url)
+        if response.status_code != 200:
+            return None
+        item = response.json()['message']
+        title = item['title'][0] if item.get('title') else "Unknown Title"
+        authors = ', '.join([f"{a.get('given', '')} {a.get('family', '')}" for a in item.get('author', [])])
+        year = item.get('issued', {}).get('date-parts', [[None]])[0][0]
+        journal = item.get('container-title', ["Unknown Journal"])[0]
         return {
-            "paper_title": data.get("title", ["No title"])[0],
-            "authors": ', '.join([author['given'] + " " + author['family'] for author in data.get('author', [])]),
+            "paper_title": title,
+            "authors": authors,
             "doi": doi,
-            "publication_year": data.get("published", {}).get("date-parts", [[None]])[0][0],
-            "journal": data.get("container-title", ["No journal"])[0]
+            "publication_year": year,
+            "journal": journal
         }
-    else:
-        return {
-            "paper_title": "Unknown Paper Title",
-            "authors": "Unknown Authors",
-            "doi": doi,
-            "publication_year": "Unknown Year",
-            "journal": "Unknown Journal"
-        }
+    except Exception as e:
+        return None
 
-# Function to show the data entry page
-def show_data_entry_page(existing_data):
-    """Display the data entry form and handle the submission process."""
-    st.title("Collision Cross Section Data Entry")
+# ------------------------ APP START ------------------------
+def main():
+    st.title("Collision Cross Section Logging")
 
-    # DOI check section
-    with st.expander("DOI Check", expanded=True):
-        st.markdown("### Check if paper already exists in database")
+    # Load existing data from GitHub
+    existing_data = get_existing_data()
+
+    if "protein_data" not in st.session_state:
+        st.session_state.protein_data = []
+    if "protein_count" not in st.session_state:
+        st.session_state.protein_count = 1
+    if "show_form" not in st.session_state:
+        st.session_state.show_form = False
+
+    # ---------- DOI CHECK ----------
+    with st.expander("Step 1: Check DOI", expanded=True):
         col1, col2 = st.columns([3, 1])
-
         with col1:
-            doi = st.text_input("Enter DOI (e.g., 10.1021/example)")
-
+            doi_input = st.text_input("Enter DOI (e.g., 10.1021/example)", key="doi_input")
         with col2:
             check_button = st.button("Check DOI")
 
-        # Check DOI and show paper details
-        if check_button and doi:
-            if not validate_doi(doi):
-                st.error("Invalid DOI format. Please enter a valid DOI (e.g., 10.1021/example)")
+        if check_button:
+            if not validate_doi(doi_input):
+                st.error("Invalid DOI format.")
             else:
-                paper_details = get_paper_details(doi)
-                if check_doi_exists(existing_data, doi):
-                    st.warning(f"This paper (DOI: {doi}) already exists in the database!")
-                    paper_entries = existing_data[existing_data['doi'] == doi]
-                    st.write(f"Found {len(paper_entries)} entries from this paper:")
-                    st.dataframe(paper_entries)
+                details = get_paper_details(doi_input)
+                if details is None:
+                    st.error("Could not fetch paper details.")
                 else:
-                    st.success(f"This paper (DOI: {doi}) is not yet in the database. Please proceed with data entry.")
-                    st.session_state.new_doi = doi
-                    st.session_state.show_full_form = True
-                    st.session_state.paper_details = paper_details
-                    st.session_state.protein_data = []
-                    st.session_state.protein_counter = 1  # Start at protein 1
+                    st.session_state.paper_details = details
+                    st.session_state.show_form = True
+                    st.success("DOI is valid. You can begin logging proteins.")
 
-    # If form for data entry is ready
-    if st.session_state.get('show_full_form', False):
-        protein_number = st.session_state.get("protein_counter", 1)
+    # ---------- PROTEIN ENTRY FORM ----------
+    if st.session_state.get("show_form", False):
+        st.header(f"Log Protein {st.session_state.protein_count}")
 
-        st.header(f"Log Protein {protein_number} Data for Paper: {st.session_state.paper_details['paper_title']}")
-
-        # Start the form without submitting until explicitly pressed 'Ready to Submit'
-        with st.form("protein_form", clear_on_submit=False):
-            # Collect protein details
-            protein_name = st.text_input("Protein/Ion Name", key="protein_name")
-            instrument = st.selectbox("Instrument Used", ["Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", 
-                                                        "Bruker timsTOF", "Other (enter)"], key="instrument")
-            ims_type = st.selectbox("IMS Type", ["TWIMS", "DTIMS", "CYCLIC", "TIMS", "FAIMS", "Other (enter)"], key="ims_type")
-            drift_gas = st.selectbox("Drift Gas", ["Nitrogen", "Helium", "Argon", "Other"], key="drift_gas")
+        with st.form(f"protein_form_{st.session_state.protein_count}"):
+            # Basic metadata
+            protein_name = st.text_input("Protein/Ion Name")
+            instrument = st.selectbox("Instrument Used", [
+                "Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560",
+                "Bruker timsTOF", "Other (enter)"
+            ])
+            ims_type = st.selectbox("IMS Type", ["TWIMS", "DTIMS", "CYCLIC", "TIMS", "FAIMS", "Other (enter)"])
+            drift_gas = st.selectbox("Drift Gas", ["Nitrogen", "Helium", "Argon", "Other"])
             if drift_gas == "Other":
-                drift_gas = st.text_input("Specify Drift Gas", key="drift_gas_other")
+                drift_gas = st.text_input("Specify Drift Gas")
 
-            # Protein identifiers section
+            polarity = st.radio("Polarity (Ionization Mode)", ["Positive", "Negative"])
+
+            # Optional identifiers
             st.markdown("#### Optional Protein Identifiers (Leave blank if not available)")
-            uniprot_id = st.text_input("Uniprot Identifier", key="uniprot_id")
-            pdb_id = st.text_input("PDB Identifier", key="pdb_id")
-            protein_sequence = st.text_area("Protein Sequence", key="protein_sequence")
-            sequence_mass_value = st.number_input("Sequence Mass (Da)", min_value=0.0, value=0.0, format="%.2f", key="sequence_mass_value")
-            measured_mass_value = st.number_input("Measured Mass (Da)", min_value=0.0, value=0.0, format="%.2f", key="measured_mass_value")
+            uniprot_id = st.text_input("Uniprot ID")
+            pdb_id = st.text_input("PDB ID")
+            protein_sequence = st.text_area("Protein Sequence")
+            sequence_mass = st.number_input("Sequence Mass (Da)", min_value=0.0, format="%.2f")
+            measured_mass = st.number_input("Measured Mass (Da)", min_value=0.0, format="%.2f")
 
-            # Native measurement and subunit count
-            native_measurement = st.radio("Is this a native measurement?", ["Yes", "No"], key="native_measurement")
-            subunit_count = st.number_input("Number of Non-Covalently Linked Subunits", min_value=1, step=1, key="subunit_count")
+            native = st.radio("Is this a native measurement?", ["Yes", "No"])
+            subunit_count = st.number_input("Number of Non-Covalently Linked Subunits", min_value=1, step=1)
+            oligomer_type = st.radio("Oligomer Type (if applicable)", ["", "Homo-oligomer", "Hetero-oligomer"])
 
-            # Oligomer type, only if subunit count > 1
-            oligomer_type = ""
-            if subunit_count > 1:
-                oligomer_type = st.radio("If this is an oligomer (subunit count > 1), is it a homo or hetero-oligomer?", 
-                                        ["", "Homo-oligomer", "Hetero-oligomer"], key="oligomer_type")
-
-            # Charge states and CCS values
-            num_ccs_values = st.number_input("How many CCS values for this protein?", min_value=1, step=1, key="num_ccs_values")
+            # CCS values
+            num_ccs = st.number_input("Number of CCS values to log", min_value=1, step=1)
             ccs_data = []
-            for i in range(num_ccs_values):
-                charge_state = st.number_input(f"Charge State {i+1}", min_value=1, step=1, key=f"charge_{i}")
-                ccs_value = st.number_input(f"CCS Value for Charge State {i+1} (Å²)", min_value=0.0, format="%.2f", key=f"ccs_{i}")
-                ccs_data.append((charge_state, ccs_value))
+            for i in range(num_ccs):
+                charge = st.number_input(f"Charge State {i+1}", min_value=1, step=1, key=f"charge_{i}")
+                ccs = st.number_input(f"CCS Value for Charge State {i+1} (Å²)", min_value=0.0, format="%.2f", key=f"ccs_{i}")
+                ccs_data.append((charge, ccs))
 
-            additional_notes = st.text_area("Additional Notes (sample, instrument, etc.)", key="additional_notes")
+            notes = st.text_area("Additional Notes")
 
-            # 'Ready to Submit' button (this is the only submit action)
-            submit_protein = st.form_submit_button("Ready to Submit")
+            # User controls when to submit
+            ready_to_submit = st.form_submit_button("Ready to Submit")
 
-            # Store form data in session state only when "Ready to Submit" is clicked
-            if submit_protein:
-                # Store data in session state
-                protein_entry = {
-                    "protein_name": protein_name,
-                    "instrument": instrument,
-                    "ims_type": ims_type,
-                    "drift_gas": drift_gas,
-                    "uniprot": uniprot_id if uniprot_id else None,
-                    "pdb": pdb_id if pdb_id else None,
-                    "sequence": protein_sequence if protein_sequence else None,
-                    "sequence_mass": sequence_mass_value if sequence_mass_value > 0 else None,
-                    "measured_mass": measured_mass_value if measured_mass_value > 0 else None,
-                    "native_measurement": native_measurement,
-                    "subunit_count": subunit_count,
-                    "oligomer_type": oligomer_type if oligomer_type else None,
-                    "ccs_data": ccs_data,
-                    "additional_notes": additional_notes
-                }
-                st.session_state.protein_data.append(protein_entry)
+        # -------------- FORM SUBMIT HANDLING --------------
+        if ready_to_submit:
+            entry = {
+                "protein_name": protein_name.strip(),
+                "instrument": instrument,
+                "ims_type": ims_type,
+                "drift_gas": drift_gas,
+                "polarity": polarity,
+                "uniprot": uniprot_id.strip() or None,
+                "pdb": pdb_id.strip() or None,
+                "sequence": protein_sequence.strip() or None,
+                "sequence_mass": sequence_mass if sequence_mass > 0 else None,
+                "measured_mass": measured_mass if measured_mass > 0 else None,
+                "native_measurement": native,
+                "subunit_count": subunit_count,
+                "oligomer_type": oligomer_type if oligomer_type else None,
+                "ccs_data": ccs_data,
+                "additional_notes": notes.strip() or None
+            }
 
-                # Ask if more proteins need to be entered
-                more_proteins = st.radio("Would you like to log another protein?", ["Yes", "No"], key="more_proteins")
-                if more_proteins == "Yes":
-                    st.session_state.protein_counter += 1  # Increment the protein counter for next entry
-                    st.session_state.show_full_form = True  # Continue showing the form
-                else:
-                    st.session_state.show_full_form = False  # Stop the process
+            # Remove earlier entry for this protein name (if any)
+            st.session_state.protein_data = [
+                p for p in st.session_state.protein_data if p["protein_name"] != entry["protein_name"]
+            ]
+            st.session_state.protein_data.append(entry)
 
-        # If no more proteins need to be logged, submit the data
-        if not st.session_state.get('show_full_form', True) and st.session_state.get('protein_data', []):
-            st.subheader("All Protein Data Submitted")
-            st.write(st.session_state.protein_data)
+            # Show confirmation
+            st.success(f"✅ Protein '{protein_name}' logged.")
+            with st.expander("View Submitted Data"):
+                st.json(entry)
 
-            # Button to submit all protein data
-            submit_all = st.button("Submit All Protein Data")
-
-            if submit_all:
-                # Submit the data (save to CSV, GitHub, etc.)
-                all_proteins = []
-                for protein in st.session_state.protein_data:
-                    all_proteins.append({
+            # Ask to continue
+            next_action = st.radio("Would you like to add another protein?", ["Yes", "No"], key=f"next_{st.session_state.protein_count}")
+            if next_action == "Yes":
+                st.session_state.protein_count += 1
+                st.experimental_rerun()
+            else:
+                # Submit everything to GitHub
+                st.subheader("Submitting Data to GitHub...")
+                all_data = []
+                for p in st.session_state.protein_data:
+                    all_data.append({
                         **st.session_state.paper_details,
-                        **protein
+                        **p
                     })
-                df = pd.DataFrame(all_proteins)
+                df = pd.DataFrame(all_data)
                 st.dataframe(df)
 
-                # GitHub push
                 g = authenticate_github()
                 if g:
                     repo = get_repository(g, st.secrets["REPO_NAME"])
                     if repo:
                         success, message = update_csv_in_github(repo, st.secrets["CSV_PATH"], df)
                         if success:
-                            st.success(message)
+                            st.success("Data submitted successfully to GitHub.")
                         else:
-                            st.error(message)
-                    else:
-                        st.error("Could not access GitHub repository.")
+                            st.error(f"Error: {message}")
                 else:
                     st.error("GitHub authentication failed.")
 
+# -------------- RUN --------------
+if __name__ == "__main__":
+    main()
