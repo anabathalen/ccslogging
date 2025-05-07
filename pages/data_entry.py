@@ -15,7 +15,7 @@ def check_doi_exists(existing_data, doi):
         return False
     return doi in existing_data['doi'].values
 
-# Fetch paper details from an external API (CrossRef for example)
+# Fetch paper details from CrossRef using DOI
 import requests
 
 def get_paper_details(doi):
@@ -74,8 +74,8 @@ def show_data_entry_page(existing_data):
     if st.session_state.get('show_full_form', False):
         st.header(f"Log Protein Data for Paper: {st.session_state.paper_details['paper_title']}")
 
-        # Start the form
-        with st.form("protein_form", clear_on_submit=False):  # Ensure the form data isn't cleared after each submission
+        # Start the form with 'clear_on_submit=False' to prevent clearing data after submission
+        with st.form("protein_form", clear_on_submit=False):
             # Protein details section
             protein_name = st.text_input("Protein/Ion Name", key="protein_name")
             instrument = st.selectbox("Instrument Used", ["Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", 
@@ -158,31 +158,4 @@ def show_data_entry_page(existing_data):
                     st.markdown(f"- Charge {charge}: {ccs} Å²")
                 st.markdown(f"**Notes:** {protein['additional_notes']}")
 
-            # Submit all data once ready
-            submit_all = st.button("Submit All Protein Data")
-
-            if submit_all:
-                all_proteins = []
-                for protein in st.session_state.protein_data:
-                    all_proteins.append({
-                        **st.session_state.paper_details,
-                        **protein
-                    })
-                df = pd.DataFrame(all_proteins)
-                st.dataframe(df)
-
-                # GitHub push
-                g = authenticate_github()
-                if g:
-                    repo = get_repository(g, st.secrets["REPO_NAME"])
-                    if repo:
-                        success, message = update_csv_in_github(repo, st.secrets["CSV_PATH"], df)
-                        if success:
-                            st.success(message)
-                        else:
-                            st.error(message)
-                    else:
-                        st.error("Could not access GitHub repository.")
-                else:
-                    st.error("GitHub authentication failed.")
 
