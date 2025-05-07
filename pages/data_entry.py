@@ -3,21 +3,22 @@ import pandas as pd
 from datetime import datetime
 import re
 from utils.github_utils import authenticate_github, get_repository, update_csv_in_github, get_existing_data
+import requests
 
-# Validate DOI format
+# Function to validate DOI format
 def validate_doi(doi):
+    """Validate DOI format using regular expression."""
     doi_pattern = r'^10\.\d{4,9}/[-._;()/:A-Z0-9]+$'
     return re.match(doi_pattern, doi, re.IGNORECASE) is not None
 
-# Check if DOI already exists in the database
+# Function to check if DOI already exists in the database
 def check_doi_exists(existing_data, doi):
+    """Check if DOI is already in the database."""
     if existing_data is None or existing_data.empty:
         return False
     return doi in existing_data['doi'].values
 
-# Fetch paper details from CrossRef using DOI
-import requests
-
+# Function to fetch paper details using DOI (CrossRef API)
 def get_paper_details(doi):
     """Fetch paper details from CrossRef using DOI."""
     response = requests.get(f"https://api.crossref.org/works/{doi}")
@@ -39,13 +40,13 @@ def get_paper_details(doi):
             "journal": "Unknown Journal"
         }
 
-# Display the form for entering data
+# Function to show the data entry page
 def show_data_entry_page(existing_data):
     """Display the data entry form and handle the submission process."""
     st.title("Collision Cross Section Data Entry")
 
     with st.expander("DOI Check", expanded=True):
-        st.markdown("### Check if paper already exists in the database")
+        st.markdown("### Check if paper already exists in database")
         col1, col2 = st.columns([3, 1])
 
         with col1:
@@ -54,6 +55,7 @@ def show_data_entry_page(existing_data):
         with col2:
             check_button = st.button("Check DOI")
 
+        # Check DOI and show paper details
         if check_button and doi:
             if not validate_doi(doi):
                 st.error("Invalid DOI format. Please enter a valid DOI (e.g., 10.1021/example)")
@@ -71,12 +73,13 @@ def show_data_entry_page(existing_data):
                     st.session_state.paper_details = paper_details
                     st.session_state.protein_data = []
 
+    # If form for data entry is ready
     if st.session_state.get('show_full_form', False):
         st.header(f"Log Protein Data for Paper: {st.session_state.paper_details['paper_title']}")
 
-        # Start the form with 'clear_on_submit=False' to prevent clearing data after submission
+        # Start the form without submitting until explicitly pressed 'Ready to Submit'
         with st.form("protein_form", clear_on_submit=False):
-            # Protein details section
+            # Collect protein details
             protein_name = st.text_input("Protein/Ion Name", key="protein_name")
             instrument = st.selectbox("Instrument Used", ["Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", 
                                                         "Bruker timsTOF", "Other (enter)"], key="instrument")
@@ -157,5 +160,3 @@ def show_data_entry_page(existing_data):
                 for charge, ccs in protein['ccs_data']:
                     st.markdown(f"- Charge {charge}: {ccs} Å²")
                 st.markdown(f"**Notes:** {protein['additional_notes']}")
-
-
