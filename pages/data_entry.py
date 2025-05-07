@@ -45,6 +45,7 @@ def show_data_entry_page(existing_data):
     """Display the data entry form and handle the submission process."""
     st.title("Collision Cross Section Data Entry")
 
+    # DOI check section
     with st.expander("DOI Check", expanded=True):
         st.markdown("### Check if paper already exists in database")
         col1, col2 = st.columns([3, 1])
@@ -145,7 +146,7 @@ def show_data_entry_page(existing_data):
                 if more_proteins == "No":
                     st.session_state.show_full_form = False
 
-        # Display entered data
+        # Display entered data only after "Ready to Submit" has been clicked
         if st.session_state.get('protein_data', []):
             st.subheader("Review Entered Data")
             for protein in st.session_state.protein_data:
@@ -160,3 +161,32 @@ def show_data_entry_page(existing_data):
                 for charge, ccs in protein['ccs_data']:
                     st.markdown(f"- Charge {charge}: {ccs} Å²")
                 st.markdown(f"**Notes:** {protein['additional_notes']}")
+            
+            # Button to submit the final data
+            submit_all = st.button("Submit All Protein Data")
+
+            if submit_all:
+                all_proteins = []
+                for protein in st.session_state.protein_data:
+                    all_proteins.append({
+                        **st.session_state.paper_details,
+                        **protein
+                    })
+                df = pd.DataFrame(all_proteins)
+                st.dataframe(df)
+
+                # GitHub push
+                g = authenticate_github()
+                if g:
+                    repo = get_repository(g, st.secrets["REPO_NAME"])
+                    if repo:
+                        success, message = update_csv_in_github(repo, st.secrets["CSV_PATH"], df)
+                        if success:
+                            st.success(message)
+                        else:
+                            st.error(message)
+                    else:
+                        st.error("Could not access GitHub repository.")
+                else:
+                    st.error("GitHub authentication failed.")
+
