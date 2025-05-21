@@ -42,8 +42,10 @@ def get_paper_details(doi):
 def main():
     st.title("Collision Cross Section Logging")
 
-    # Load existing data from GitHub
-    existing_data = get_existing_data()
+    # Load existing data from GitHub - FIX: Add the required arguments
+    repo_name = st.secrets.get("REPO_NAME", "anabathalen/ccslogging")
+    csv_path = st.secrets.get("CSV_PATH", "data/ccs_data.csv")
+    existing_data = get_existing_data(repo_name, csv_path)
 
     if "protein_data" not in st.session_state:
         st.session_state.protein_data = []
@@ -165,15 +167,23 @@ def main():
 
                 g = authenticate_github()
                 if g:
-                    repo = get_repository(g, st.secrets["REPO_NAME"])
+                    # FIX: Use the same repo_name and csv_path variables
+                    repo = get_repository(g, repo_name)
                     if repo:
-                        success, message = update_csv_in_github(repo, st.secrets["CSV_PATH"], df)
+                        success, message = update_csv_in_github(repo, csv_path, df)
                         if success:
                             st.success("Data submitted successfully to GitHub.")
                         else:
                             st.error(f"Error: {message}")
                 else:
                     st.error("GitHub authentication failed.")
+
+# Function to make this module importable from the main app
+def show_data_entry_page():
+    """
+    This function exposes the main functionality to be imported by app.py
+    """
+    main()
 
 # -------------- RUN --------------
 if __name__ == "__main__":
