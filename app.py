@@ -71,7 +71,7 @@ def main():
 
     # Main content based on selected page
     if st.session_state.page == "Data Entry":
-        show_data_entry_page(existing_data)
+        show_data_entry_page()
     else:
         show_data_browser_page(existing_data)
 
