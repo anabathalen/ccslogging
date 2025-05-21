@@ -5,18 +5,18 @@ from datetime import datetime
 from utils.github_utils import authenticate_github, get_repository, update_csv_in_github, get_existing_data
 import requests
 
-# Validate DOI format using regex
+# ---------- DOI Validation ----------
 def validate_doi(doi):
-    doi_pattern = r'^10\.\d{4,9}/[-._;()/:A-Z0-9]+$'
-    return re.match(doi_pattern, doi, re.IGNORECASE) is not None
+    pattern = r'^10\.\d{4,9}/[-._;()/:A-Z0-9]+$'
+    return re.match(pattern, doi, re.IGNORECASE) is not None
 
-# Check if DOI exists in current GitHub database
+# ---------- Check for Existing DOI ----------
 def check_doi_exists(existing_data, doi):
     if existing_data is None or existing_data.empty:
         return False
     return doi in existing_data['doi'].values
 
-# Use CrossRef API to fetch paper details based on DOI
+# ---------- Fetch Paper Metadata ----------
 def get_paper_details(doi):
     try:
         url = f"https://api.crossref.org/works/{doi}"
@@ -24,66 +24,61 @@ def get_paper_details(doi):
         if response.status_code != 200:
             return None
         item = response.json()['message']
-        title = item['title'][0] if item.get('title') else "Unknown Title"
-        authors = ', '.join([f"{a.get('given', '')} {a.get('family', '')}" for a in item.get('author', [])])
-        year = item.get('issued', {}).get('date-parts', [[None]])[0][0]
-        journal = item.get('container-title', ["Unknown Journal"])[0]
         return {
-            "paper_title": title,
-            "authors": authors,
+            "paper_title": item.get("title", ["Unknown Title"])[0],
+            "authors": ', '.join([f"{a.get('given', '')} {a.get('family', '')}" for a in item.get("author", [])]),
             "doi": doi,
-            "publication_year": year,
-            "journal": journal
+            "publication_year": item.get("issued", {}).get("date-parts", [[None]])[0][0],
+            "journal": item.get("container-title", ["Unknown Journal"])[0]
         }
-    except Exception as e:
+    except Exception:
         return None
 
-# ------------------------ APP START ------------------------
+# ---------- Main Entry Point ----------
 def main():
     st.title("Collision Cross Section Logging")
 
-    # Load existing data from GitHub - FIX: Add the required arguments
     repo_name = st.secrets.get("REPO_NAME", "anabathalen/ccslogging")
     csv_path = st.secrets.get("CSV_PATH", "data/ccs_data.csv")
     existing_data = get_existing_data(repo_name, csv_path)
 
+    # State Initialization
     if "protein_data" not in st.session_state:
-        st.session_state.protein_data = []
+        st.session_state.protein_data = {}
     if "protein_count" not in st.session_state:
         st.session_state.protein_count = 1
     if "show_form" not in st.session_state:
         st.session_state.show_form = False
 
-    # ---------- DOI CHECK ----------
+    # ---------- DOI STEP ----------
     with st.expander("Step 1: Check DOI", expanded=True):
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            doi_input = st.text_input("Enter DOI (e.g., 10.1021/example)", key="doi_input")
-        with col2:
-            check_button = st.button("Check DOI")
-
-        if check_button:
+        doi_input = st.text_input("Enter DOI (e.g., 10.1021/example)")
+        if st.button("Check DOI"):
             if not validate_doi(doi_input):
                 st.error("Invalid DOI format.")
+            elif check_doi_exists(existing_data, doi_input):
+                st.warning("This DOI already exists in the database.")
             else:
                 details = get_paper_details(doi_input)
-                if details is None:
-                    st.error("Could not fetch paper details.")
+                if not details:
+                    st.error("Failed to fetch paper details.")
                 else:
                     st.session_state.paper_details = details
                     st.session_state.show_form = True
-                    st.success("DOI is valid. You can begin logging proteins.")
+                    st.success("DOI is valid. Proceed to protein logging.")
 
     # ---------- PROTEIN ENTRY FORM ----------
     if st.session_state.get("show_form", False):
         st.header(f"Log Protein {st.session_state.protein_count}")
 
         with st.form(f"protein_form_{st.session_state.protein_count}"):
-            # Basic metadata
-            protein_name = st.text_input("Protein/Ion Name")
+            # Required Fields
+            protein_name = st.text_input("Protein/Ion Name").strip()
+            if not protein_name:
+                st.warning("Protein Name is required to proceed.")
+
             instrument = st.selectbox("Instrument Used", [
-                "Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560",
-                "Bruker timsTOF", "Other (enter)"
+                "Waters Synapt", "Waters Cyclic", "Waters Vion", "Agilent 6560", "Bruker timsTOF", "Other (enter)"
             ])
             ims_type = st.selectbox("IMS Type", ["TWIMS", "DTIMS", "CYCLIC", "TIMS", "FAIMS", "Other (enter)"])
             drift_gas = st.selectbox("Drift Gas", ["Nitrogen", "Helium", "Argon", "Other"])
@@ -92,7 +87,7 @@ def main():
 
             polarity = st.radio("Polarity (Ionization Mode)", ["Positive", "Negative"])
 
-            # Optional identifiers
+            # Optional Identifiers
             st.markdown("#### Optional Protein Identifiers (Leave blank if not available)")
             uniprot_id = st.text_input("Uniprot ID")
             pdb_id = st.text_input("PDB ID")
@@ -104,7 +99,7 @@ def main():
             subunit_count = st.number_input("Number of Non-Covalently Linked Subunits", min_value=1, step=1)
             oligomer_type = st.radio("Oligomer Type (if applicable)", ["", "Homo-oligomer", "Hetero-oligomer"])
 
-            # CCS values
+            # CCS Data
             num_ccs = st.number_input("Number of CCS values to log", min_value=1, step=1)
             ccs_data = []
             for i in range(num_ccs):
@@ -114,77 +109,74 @@ def main():
 
             notes = st.text_area("Additional Notes")
 
-            # User controls when to submit
-            ready_to_submit = st.form_submit_button("Ready to Submit")
+            # Submit Button
+            ready = st.form_submit_button("Ready to Submit")
 
-        # -------------- FORM SUBMIT HANDLING --------------
-        if ready_to_submit:
-            entry = {
-                "protein_name": protein_name.strip(),
+        # ---------- PROCESS SUBMISSION ----------
+        if ready:
+            if not protein_name:
+                st.error("Protein name is required.")
+                st.stop()
+
+            # Save entry in dict to avoid duplicates
+            st.session_state.protein_data[protein_name] = {
+                "protein_name": protein_name,
                 "instrument": instrument,
                 "ims_type": ims_type,
                 "drift_gas": drift_gas,
                 "polarity": polarity,
-                "uniprot": uniprot_id.strip() or None,
-                "pdb": pdb_id.strip() or None,
-                "sequence": protein_sequence.strip() or None,
+                "uniprot": uniprot_id or None,
+                "pdb": pdb_id or None,
+                "sequence": protein_sequence or None,
                 "sequence_mass": sequence_mass if sequence_mass > 0 else None,
                 "measured_mass": measured_mass if measured_mass > 0 else None,
                 "native_measurement": native,
                 "subunit_count": subunit_count,
-                "oligomer_type": oligomer_type if oligomer_type else None,
+                "oligomer_type": oligomer_type or None,
                 "ccs_data": ccs_data,
-                "additional_notes": notes.strip() or None
+                "additional_notes": notes or None
             }
 
-            # Remove earlier entry for this protein name (if any)
-            st.session_state.protein_data = [
-                p for p in st.session_state.protein_data if p["protein_name"] != entry["protein_name"]
-            ]
-            st.session_state.protein_data.append(entry)
-
-            # Show confirmation
             st.success(f"✅ Protein '{protein_name}' logged.")
-            with st.expander("View Submitted Data"):
-                st.json(entry)
+            st.json(st.session_state.protein_data[protein_name])
 
-            # Ask to continue
-            next_action = st.radio("Would you like to add another protein?", ["Yes", "No"], key=f"next_{st.session_state.protein_count}")
+            next_action = st.radio("Add another protein?", ["Yes", "No"], key=f"next_{st.session_state.protein_count}")
             if next_action == "Yes":
                 st.session_state.protein_count += 1
                 st.experimental_rerun()
             else:
-                # Submit everything to GitHub
-                st.subheader("Submitting Data to GitHub...")
-                all_data = []
-                for p in st.session_state.protein_data:
-                    all_data.append({
-                        **st.session_state.paper_details,
-                        **p
-                    })
-                df = pd.DataFrame(all_data)
+                # Submit all data
+                st.subheader("Submitting to GitHub...")
+
+                # Prepare DataFrame
+                full_data = []
+                for entry in st.session_state.protein_data.values():
+                    full_data.append({**st.session_state.paper_details, **entry})
+                df = pd.DataFrame(full_data)
+
+                # Merge with existing
+                if existing_data is not None and not existing_data.empty:
+                    df = pd.concat([existing_data, df], ignore_index=True)
+
                 st.dataframe(df)
 
                 g = authenticate_github()
                 if g:
-                    # FIX: Use the same repo_name and csv_path variables
                     repo = get_repository(g, repo_name)
                     if repo:
-                        success, message = update_csv_in_github(repo, csv_path, df)
+                        success, msg = update_csv_in_github(repo, csv_path, df)
                         if success:
-                            st.success("Data submitted successfully to GitHub.")
+                            st.success("✅ Data submitted to GitHub.")
                         else:
-                            st.error(f"Error: {message}")
+                            st.error(f"GitHub update failed: {msg}")
+                    else:
+                        st.error("Could not access GitHub repo.")
                 else:
                     st.error("GitHub authentication failed.")
 
-# Function to make this module importable from the main app
+# ---------- Expose for Main App ----------
 def show_data_entry_page():
-    """
-    This function exposes the main functionality to be imported by app.py
-    """
     main()
 
-# -------------- RUN --------------
 if __name__ == "__main__":
     main()
